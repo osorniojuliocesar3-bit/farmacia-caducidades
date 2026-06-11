@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Caducidades — Farmacia</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --red:    #e53e3e;
+      --orange: #dd6b20;
+      --yellow: #d69e2e;
+      --green:  #38a169;
+      --blue:   #3182ce;
+      --gray:   #718096;
+      --bg:     #f7fafc;
+      --card:   #ffffff;
+      --border: #e2e8f0;
+      --text:   #2d3748;
+      --muted:  #718096;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--blue);
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    header h1 { font-size: 1.3rem; font-weight: 700; }
+    header span { font-size: .9rem; opacity: .85; }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ── Cards de resumen ── */
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 16px;
+      border-left: 4px solid var(--blue);
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    }
+    .stat-card.expired  { border-color: var(--red); }
+    .stat-card.critical { border-color: var(--orange); }
+    .stat-card.warning  { border-color: var(--yellow); }
+    .stat-card.ok       { border-color: var(--green); }
+    .stat-card .num  { font-size: 2rem; font-weight: 800; }
+    .stat-card .lbl  { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: .95rem;
+      background: var(--card);
+    }
+    .toolbar input[type="text"]:focus { outline: 2px solid var(--blue); border-color: transparent; }
+
+    select {
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      font-size: .9rem;
+      cursor: pointer;
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .87; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-danger  { background: var(--red);  color: #fff; }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      text-align: center;
+      background: var(--card);
+      margin-bottom: 24px;
+      transition: border-color .2s, background .2s;
+      cursor: pointer;
+    }
+    .upload-zone.drag { border-color: var(--blue); background: #ebf4ff; }
+    .upload-zone p  { color: var(--muted); font-size: .9rem; margin-top: 8px; }
+    .upload-zone .icon { font-size: 2.5rem; }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    thead th {
+      background: #edf2f7;
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 700;
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    thead th:hover { background: #e2e8f0; }
+    tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: #f7fafc; }
+    tbody td { padding: 11px 14px; vertical-align: middle; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .badge-red    { background: #fff5f5; color: var(--red); }
+    .badge-orange { background: #fffaf0; color: var(--orange); }
+    .badge-yellow { background: #fffff0; color: var(--yellow); }
+    .badge-green  { background: #f0fff4; color: var(--green); }
+
+    .days-chip {
+      font-size: .78rem;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    /* ── Modal ── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 28px;
+      width: min(480px, 95vw);
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 18px; }
+    .field-row { margin-bottom: 14px; }
+    .field-row label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: 5px; color: var(--muted); }
+    .field-row input, .field-row select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: .95rem;
+    }
+    .field-row input:focus { outline: 2px solid var(--blue); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: #2d3748;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: .9rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s;
+      z-index: 999;
+      max-width: 320px;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty .icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      padding: 16px;
+      flex-wrap: wrap;
+    }
+    .page-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      cursor: pointer;
+      font-size: .85rem;
+    }
+    .page-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .page-btn:hover:not(.active) { background: #edf2f7; }
+
+    @media (max-width: 600px) {
+      .toolbar { flex-direction: column; }
+      .toolbar input[type="text"] { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="icon">💊</span>
+  <div>
+    <h1>Control de Caducidades</h1>
+    <span>Sistema de gestión — Farmacia</span>
+  </div>
+</header>
+
+<main>
+  <!-- Resumen -->
+  <div class="summary">
+    <div class="stat-card expired">
+      <div class="num" id="cnt-expired">0</div>
+      <div class="lbl">Caducados</div>
+    </div>
+    <div class="stat-card critical">
+      <div class="num" id="cnt-critical">0</div>
+      <div class="lbl">Críticos (≤30 días)</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="num" id="cnt-warning">0</div>
+      <div class="lbl">Próximos (31–90 días)</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="num" id="cnt-ok">0</div>
+      <div class="lbl">Sin riesgo (&gt;90 días)</div>
+    </div>
+  </div>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="dropzone">
+    <div class="icon">📂</div>
+    <strong>Arrastra tu archivo Excel aquí</strong>
+    <p>o haz clic para seleccionarlo (.xlsx, .xls)</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" />
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="searchBox" placeholder="Buscar por nombre o código…" oninput="applyFilters()" />
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="all">Todos los estados</option>
+      <option value="expired">Caducados</option>
+      <option value="critical">Críticos (≤30 días)</option>
+      <option value="warning">Próximos (31–90 días)</option>
+      <option value="ok">Sin riesgo</option>
+    </select>
+    <button class="btn btn-primary" onclick="openModal()">+ Agregar producto</button>
+    <button class="btn btn-outline" onclick="exportExcel()">⬇ Exportar Excel</button>
+    <button class="btn btn-danger" id="btnDelete" style="display:none" onclick="deleteSelected()">🗑 Eliminar selección</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table id="prodTable">
+      <thead>
+        <tr>
+          <th style="width:36px"><input type="checkbox" id="checkAll" onchange="toggleAll(this)" /></th>
+          <th onclick="sortBy('codigo')">Código ▾</th>
+          <th onclick="sortBy('nombre')">Nombre ▾</th>
+          <th onclick="sortBy('fecha_caducidad')">Fecha Caducidad ▾</th>
+          <th onclick="sortBy('dias')">Días restantes ▾</th>
+          <th onclick="sortBy('cantidad')">Cantidad ▾</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</main>
+
+<!-- Modal agregar/editar -->
+<div class="overlay" id="overlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h2 id="modalTitle">Agregar producto</h2>
+    <div class="field-row">
+      <label>Código / SKU</label>
+      <input type="text" id="f-codigo" placeholder="Ej: MED-001" />
+    </div>
+    <div class="field-row">
+      <label>Nombre del producto *</label>
+      <input type="text" id="f-nombre" placeholder="Ej: Paracetamol 500mg" />
+    </div>
+    <div class="field-row">
+      <label>Fecha de caducidad *</label>
+      <input type="date" id="f-fecha" />
+    </div>
+    <div class="field-row">
+      <label>Cantidad / Stock</label>
+      <input type="number" id="f-cantidad" placeholder="0" min="0" />
+    </div>
+    <div class="field-row">
+      <label>Presentación / Notas</label>
+      <input type="text" id="f-notas" placeholder="Ej: Caja x 20 tabletas" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProduct()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── IndexedDB setup ──────────────────────────────────────────────
+const DB_NAME = 'farmacia_db';
+const DB_VER  = 1;
+const STORE   = 'productos';
+let db;
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) {
+        const s = d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        s.createIndex('nombre', 'nombre', { unique: false });
+        s.createIndex('fecha_caducidad', 'fecha_caducidad', { unique: false });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror   = e => rej(e);
+  });
+}
+
+function dbAll() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror   = e => rej(e);
+  });
+}
+
+function dbPut(item) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = item.id ? tx.objectStore(STORE).put(item) : tx.objectStore(STORE).add(item);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = e => rej(e);
+  });
+}
+
+function dbDelete(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e);
+  });
+}
+
+// ── State ────────────────────────────────────────────────────────
+let allProducts   = [];
+let filtered      = [];
+let editingId     = null;
+let sortKey       = 'dias';
+let sortDir       = 1;
+let currentPage   = 1;
+const PAGE_SIZE   = 20;
+
+// ── Helpers ──────────────────────────────────────────────────────
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  return Math.floor((d - today) / 86400000);
+}
+
+function statusOf(days) {
+  if (days === null) return 'unknown';
+  if (days < 0)  return 'expired';
+  if (days <= 30) return 'critical';
+  if (days <= 90) return 'warning';
+  return 'ok';
+}
+
+function badge(days) {
+  const s = statusOf(days);
+  const map = {
+    expired:  ['badge-red',    '❌ Caducado'],
+    critical: ['badge-orange', '🔴 Crítico'],
+    warning:  ['badge-yellow', '🟡 Próximo'],
+    ok:       ['badge-green',  '🟢 OK'],
+    unknown:  ['badge-green',  '—'],
+  };
+  const [cls, label] = map[s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function daysChip(days) {
+  if (days === null) return '—';
+  const s = statusOf(days);
+  const colors = { expired:'#fff5f5;color:#e53e3e', critical:'#fffaf0;color:#dd6b20', warning:'#fffff0;color:#d69e2e', ok:'#f0fff4;color:#38a169' };
+  const style = colors[s] || '';
+  const label = days < 0 ? `${Math.abs(days)} días vencido` : days === 0 ? 'Hoy' : `${days} días`;
+  return `<span class="days-chip" style="background:${style}">${label}</span>`;
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'2-digit' });
+}
+
+function toast(msg, ms = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function render() {
+  updateSummary();
+  applyFilters();
+}
+
+function updateSummary() {
+  const counts = { expired:0, critical:0, warning:0, ok:0 };
+  allProducts.forEach(p => {
+    const s = statusOf(p.dias);
+    if (counts[s] !== undefined) counts[s]++;
+  });
+  document.getElementById('cnt-expired').textContent  = counts.expired;
+  document.getElementById('cnt-critical').textContent = counts.critical;
+  document.getElementById('cnt-warning').textContent  = counts.warning;
+  document.getElementById('cnt-ok').textContent       = counts.ok;
+}
+
+function applyFilters() {
+  const q      = document.getElementById('searchBox').value.trim().toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+
+  filtered = allProducts.filter(p => {
+    const matchQ = !q ||
+      (p.nombre  || '').toLowerCase().includes(q) ||
+      (p.codigo  || '').toLowerCase().includes(q) ||
+      (p.notas   || '').toLowerCase().includes(q);
+    const matchS = status === 'all' || statusOf(p.dias) === status;
+    return matchQ && matchS;
+  });
+
+  // sort
+  filtered.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'dias') { va = va ?? 99999; vb = vb ?? 99999; }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -sortDir;
+    if (va > vb) return  sortDir;
+    return 0;
+  });
+
+  currentPage = 1;
+  renderTable();
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = 1; }
+  applyFilters();
+}
+
+function renderTable() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = filtered.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById('tableBody');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">🔍</div><p>No se encontraron productos.</p></div></td></tr>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = page.map(p => `
+    <tr>
+      <td><input type="checkbox" class="row-check" data-id="${p.id}" onchange="onCheck()" /></td>
+      <td>${p.codigo || '<span style="color:var(--muted)">—</span>'}</td>
+      <td><strong>${p.nombre || '—'}</strong>${p.notas ? `<br><small style="color:var(--muted)">${p.notas}</small>` : ''}</td>
+      <td>${fmtDate(p.fecha_caducidad)}</td>
+      <td>${daysChip(p.dias)}</td>
+      <td>${p.cantidad ?? '—'}</td>
+      <td>${badge(p.dias)}</td>
+      <td>
+        <button class="btn btn-outline" style="padding:5px 10px;font-size:.8rem" onclick="editProduct(${p.id})">✏️</button>
+        <button class="btn btn-danger"  style="padding:5px 10px;font-size:.8rem;margin-left:4px" onclick="deleteOne(${p.id})">🗑</button>
+      </td>
+    </tr>`).join('');
+
+  renderPagination();
+}
+
+function renderPagination() {
+  const total = Math.ceil(filtered.length / PAGE_SIZE);
+  if (total <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+  let html = '';
+  for (let i = 1; i <= total; i++) {
+    html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  document.getElementById('pagination').innerHTML = html;
+}
+
+function goPage(n) { currentPage = n; renderTable(); }
+
+// ── Checkbox selection ───────────────────────────────────────────
+function onCheck() {
+  const any = document.querySelectorAll('.row-check:checked').length > 0;
+  document.getElementById('btnDelete').style.display = any ? '' : 'none';
+}
+function toggleAll(el) {
+  document.querySelectorAll('.row-check').forEach(c => { c.checked = el.checked; });
+  onCheck();
+}
+
+// ── CRUD ─────────────────────────────────────────────────────────
+function openModal(id = null) {
+  editingId = id;
+  document.getElementById('modalTitle').textContent = id ? 'Editar producto' : 'Agregar producto';
+  ['codigo','nombre','fecha','cantidad','notas'].forEach(f => document.getElementById('f-'+f).value = '');
+
+  if (id) {
+    const p = allProducts.find(x => x.id === id);
+    if (p) {
+      document.getElementById('f-codigo').value   = p.codigo    || '';
+      document.getElementById('f-nombre').value   = p.nombre    || '';
+      document.getElementById('f-fecha').value    = p.fecha_caducidad || '';
+      document.getElementById('f-cantidad').value = p.cantidad  ?? '';
+      document.getElementById('f-notas').value    = p.notas     || '';
+    }
+  }
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('f-nombre').focus();
+}
+
+function closeModal() { document.getElementById('overlay').classList.remove('open'); editingId = null; }
+function closeModalOutside(e) { if (e.target === document.getElementById('overlay')) closeModal(); }
+
+async function saveProduct() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const fecha  = document.getElementById('f-fecha').value;
+  if (!nombre) { toast('⚠️ El nombre es obligatorio.'); return; }
+  if (!fecha)  { toast('⚠️ La fecha de caducidad es obligatoria.'); return; }
+
+  const item = {
+    codigo:          document.getElementById('f-codigo').value.trim(),
+    nombre,
+    fecha_caducidad: fecha,
+    cantidad:        document.getElementById('f-cantidad').value !== '' ? Number(document.getElementById('f-cantidad').value) : null,
+    notas:           document.getElementById('f-notas').value.trim(),
+    dias:            daysUntil(fecha),
+  };
+  if (editingId) item.id = editingId;
+
+  await dbPut(item);
+  closeModal();
+  await loadAll();
+  render();
+  toast(editingId ? '✅ Producto actualizado.' : '✅ Producto agregado.');
+}
+
+function editProduct(id) { openModal(id); }
+
+async function deleteOne(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  await dbDelete(id);
+  await loadAll();
+  render();
+  toast('🗑 Producto eliminado.');
+}
+
+async function deleteSelected() {
+  const ids = [...document.querySelectorAll('.row-check:checked')].map(c => Number(c.dataset.id));
+  if (!ids.length) return;
+  if (!confirm(`¿Eliminar ${ids.length} producto(s)?`)) return;
+  for (const id of ids) await dbDelete(id);
+  document.getElementById('btnDelete').style.display = 'none';
+  await loadAll();
+  render();
+  toast(`🗑 ${ids.length} producto(s) eliminados.`);
+}
+
+// ── Load ─────────────────────────────────────────────────────────
+async function loadAll() {
+  allProducts = await dbAll();
+  allProducts.forEach(p => { p.dias = daysUntil(p.fecha_caducidad); });
+}
+
+// ── Excel import ─────────────────────────────────────────────────
+const ALIASES = {
+  nombre:          ['nombre','producto','medicamento','description','descripcion','name'],
+  codigo:          ['codigo','code','sku','clave','ref','referencia'],
+  fecha_caducidad: ['fecha caducidad','fecha_caducidad','caducidad','expiracion','expiry','expiration','vencimiento','fecha vencimiento','exp date'],
+  cantidad:        ['cantidad','stock','qty','existencia','existencias','units'],
+  notas:           ['notas','nota','presentacion','presentación','obs','observaciones'],
+};
+
+function guessCol(headers, field) {
+  const aliases = ALIASES[field];
+  const norm = h => h.toString().toLowerCase().trim().replace(/[^a-záéíóúñü ]/g,'');
+  for (const alias of aliases) {
+    const idx = headers.findIndex(h => norm(h) === alias);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function parseExcelDate(val) {
+  if (!val) return '';
+  // Already a JS Date
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth()+1).padStart(2,'0');
+    const d = String(val.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  // Number (Excel serial)
+  if (typeof val === 'number') {
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  // String: try common formats
+  const str = val.toString().trim();
+  // dd/mm/yyyy or dd-mm-yyyy
+  const m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m1) return `${m1[3]}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`;
+  // yyyy-mm-dd already
+  const m2 = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return m2[0];
+  // mm/yyyy or similar for month-year only
+  const m3 = str.match(/^(\d{1,2})[\/\-](\d{4})$/);
+  if (m3) return `${m3[2]}-${m3[1].padStart(2,'0')}-01`;
+  return str;
+}
+
+async function importExcel(file) {
+  const data = await file.arrayBuffer();
+  const wb   = XLSX.read(data, { type:'array', cellDates: true });
+  const ws   = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+  if (rows.length < 2) { toast('⚠️ El archivo está vacío o no tiene datos.'); return; }
+
+  const headers = rows[0].map(h => (h || '').toString());
+  const colMap  = {};
+  for (const field of Object.keys(ALIASES)) {
+    colMap[field] = guessCol(headers, field);
+  }
+
+  // If nombre not found, try first column
+  if (colMap.nombre < 0) colMap.nombre = 0;
+
+  let imported = 0, skipped = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const nombre = colMap.nombre >= 0 ? (row[colMap.nombre] || '').toString().trim() : '';
+    if (!nombre) { skipped++; continue; }
+
+    const fechaRaw = colMap.fecha_caducidad >= 0 ? row[colMap.fecha_caducidad] : '';
+    const fecha    = parseExcelDate(fechaRaw);
+
+    const item = {
+      nombre,
+      codigo:          colMap.codigo   >= 0 ? (row[colMap.codigo]   || '').toString().trim() : '',
+      fecha_caducidad: fecha,
+      cantidad:        colMap.cantidad  >= 0 && row[colMap.cantidad] !== '' ? Number(row[colMap.cantidad]) : null,
+      notas:           colMap.notas     >= 0 ? (row[colMap.notas]    || '').toString().trim() : '',
+      dias:            daysUntil(fecha),
+    };
+    await dbPut(item);
+    imported++;
+  }
+
+  await loadAll();
+  render();
+  toast(`✅ ${imported} productos importados${skipped ? `, ${skipped} filas vacías ignoradas` : ''}.`);
+}
+
+// ── Excel export ─────────────────────────────────────────────────
+function exportExcel() {
+  const data = filtered.map(p => ({
+    'Código':            p.codigo || '',
+    'Nombre':            p.nombre || '',
+    'Fecha Caducidad':   p.fecha_caducidad || '',
+    'Días Restantes':    p.dias ?? '',
+    'Estado':            ['Caducado','Crítico','Próximo','OK'][['expired','critical','warning','ok'].indexOf(statusOf(p.dias))] || '',
+    'Cantidad':          p.cantidad ?? '',
+    'Notas':             p.notas || '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Caducidades');
+  XLSX.writeFile(wb, `caducidades_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ── Drag & drop / file input ─────────────────────────────────────
+const dropzone  = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) importExcel(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) importExcel(fileInput.files[0]);
+  fileInput.value = '';
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+(async () => {
+  await openDB();
+  await loadAll();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+node_modules/
+.env
+farmacia.json
+usuarios.json
+*.db

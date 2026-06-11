@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Caducidades — Farmacia</title>
+  <style>
+    :root {
+      --red:    #e53e3e;
+      --orange: #dd6b20;
+      --yellow: #d69e2e;
+      --green:  #38a169;
+      --blue:   #3182ce;
+      --blue-dark: #2b6cb0;
+      --bg:     #f7fafc;
+      --card:   #ffffff;
+      --border: #e2e8f0;
+      --text:   #2d3748;
+      --muted:  #718096;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── LOGIN ── */
+    #loginScreen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #2b6cb0 0%, #3182ce 50%, #4299e1 100%);
+    }
+    .login-box {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 40px 36px;
+      width: min(400px, 95vw);
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    }
+    .login-logo { text-align: center; margin-bottom: 28px; }
+    .login-logo .icon { font-size: 3rem; }
+    .login-logo h1 { font-size: 1.4rem; margin-top: 8px; color: var(--blue); }
+    .login-logo p  { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+    .login-field { margin-bottom: 16px; }
+    .login-field label { display: block; font-size: .82rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .login-field input {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: 9px;
+      font-size: 1rem; transition: border-color .2s;
+    }
+    .login-field input:focus { outline: none; border-color: var(--blue); }
+    .btn-login {
+      width: 100%; padding: 12px;
+      background: var(--blue); color: #fff;
+      border: none; border-radius: 9px;
+      font-size: 1rem; font-weight: 700;
+      cursor: pointer; margin-top: 4px;
+      transition: background .2s;
+    }
+    .btn-login:hover { background: var(--blue-dark); }
+    .login-error {
+      background: #fff5f5; color: var(--red);
+      border: 1px solid #fed7d7;
+      border-radius: 8px; padding: 10px 14px;
+      font-size: .88rem; margin-top: 14px;
+      display: none;
+    }
+    .login-error.show { display: block; }
+
+    /* ── APP ── */
+    #appScreen { display: none; }
+
+    header {
+      background: var(--blue);
+      color: #fff;
+      padding: 0 24px;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    header .logo { display: flex; align-items: center; gap: 10px; flex: 1; }
+    header h1 { font-size: 1.15rem; font-weight: 700; }
+    header .sub { font-size: .8rem; opacity: .8; }
+    .user-info {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .88rem;
+    }
+    .user-avatar {
+      width: 34px; height: 34px;
+      background: rgba(255,255,255,.25);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .95rem;
+    }
+    .user-name { opacity: .9; }
+    .user-rol {
+      background: rgba(255,255,255,.2);
+      padding: 2px 8px; border-radius: 999px;
+      font-size: .72rem; font-weight: 600; opacity: .9;
+    }
+
+    /* Nav tabs */
+    nav {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0;
+      padding: 0 24px;
+    }
+    .nav-tab {
+      padding: 13px 18px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: color .15s, border-color .15s;
+      user-select: none;
+    }
+    .nav-tab:hover { color: var(--blue); }
+    .nav-tab.active { color: var(--blue); border-color: var(--blue); }
+    .nav-tab.admin-only { display: none; }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Panels */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* Summary */
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: var(--card); border-radius: 10px; padding: 16px; border-left: 4px solid var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+    .stat-card.expired  { border-color: var(--red); }
+    .stat-card.critical { border-color: var(--orange); }
+    .stat-card.warning  { border-color: var(--yellow); }
+    .stat-card.ok       { border-color: var(--green); }
+    .stat-card .num { font-size: 2rem; font-weight: 800; }
+    .stat-card .lbl { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+
+    /* Upload */
+    .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 28px; text-align: center; background: var(--card); margin-bottom: 24px; cursor: pointer; transition: border-color .2s, background .2s; }
+    .upload-zone.drag { border-color: var(--blue); background: #ebf4ff; }
+    .upload-zone .icon { font-size: 2.5rem; }
+    .upload-zone p { color: var(--muted); font-size: .9rem; margin-top: 8px; }
+
+    /* Toolbar */
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; }
+    .toolbar input[type="text"] { flex: 1; min-width: 200px; padding: 9px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: .95rem; background: var(--card); }
+    .toolbar input[type="text"]:focus { outline: 2px solid var(--blue); border-color: transparent; }
+    select { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: .9rem; cursor: pointer; }
+
+    /* Buttons */
+    .btn { padding: 9px 18px; border-radius: 8px; border: none; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+    .btn:hover { opacity: .87; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-danger  { background: var(--red);  color: #fff; }
+    .btn-warning { background: var(--orange); color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm { padding: 5px 10px; font-size: .8rem; }
+
+    /* Table */
+    .table-wrap { background: var(--card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    thead th { background: #edf2f7; padding: 12px 14px; text-align: left; font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
+    thead th:hover { background: #e2e8f0; }
+    tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: #f7fafc; }
+    tbody td { padding: 11px 14px; vertical-align: middle; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+    .badge-red    { background: #fff5f5; color: var(--red); }
+    .badge-orange { background: #fffaf0; color: var(--orange); }
+    .badge-yellow { background: #fffff0; color: var(--yellow); }
+    .badge-green  { background: #f0fff4; color: var(--green); }
+    .badge-blue   { background: #ebf8ff; color: var(--blue); }
+    .badge-gray   { background: #f7fafc; color: var(--muted); }
+    .days-chip { font-size: .78rem; padding: 2px 7px; border-radius: 6px; font-weight: 600; }
+
+    /* Modal */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .overlay.open { display: flex; }
+    .modal { background: var(--card); border-radius: 14px; padding: 28px; width: min(480px, 95vw); box-shadow: 0 8px 32px rgba(0,0,0,.18); max-height: 90vh; overflow-y: auto; }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 18px; }
+    .field-row { margin-bottom: 14px; }
+    .field-row label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: 5px; color: var(--muted); }
+    .field-row input, .field-row select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: .95rem; }
+    .field-row input:focus { outline: 2px solid var(--blue); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Users panel */
+    .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .user-card {
+      background: var(--card); border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      border-left: 4px solid var(--blue);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .user-card.admin-card { border-color: var(--orange); }
+    .user-card-name { font-size: 1rem; font-weight: 700; }
+    .user-card-user { font-size: .85rem; color: var(--muted); }
+    .user-card-actions { display: flex; gap: 8px; margin-top: 6px; }
+
+    /* Profile */
+    .profile-box { background: var(--card); border-radius: 14px; padding: 28px; max-width: 440px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+    .profile-box h3 { font-size: 1rem; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #2d3748; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: .9rem; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 999; max-width: 320px; }
+    #toast.show { opacity: 1; }
+
+    .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .empty .icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .pagination { display: flex; justify-content: center; gap: 6px; padding: 16px; flex-wrap: wrap; }
+    .page-btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); cursor: pointer; font-size: .85rem; }
+    .page-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .page-btn:hover:not(.active) { background: #edf2f7; }
+
+    .select-all-banner {
+      display: none;
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: .88rem;
+      color: var(--blue-dark);
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .select-all-banner.show { display: flex; }
+    .select-all-banner strong { font-weight: 700; }
+    .link-btn { background: none; border: none; color: var(--blue); font-weight: 700; cursor: pointer; text-decoration: underline; font-size: .88rem; padding: 0; }
+    .link-btn:hover { opacity: .8; }
+
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 600px) { .toolbar { flex-direction: column; } .toolbar input[type="text"] { width: 100%; } }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ PANTALLA DE LOGIN ══════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">💊</div>
+      <h1>Control de Caducidades</h1>
+      <p>Sistema de gestión — Farmacia</p>
+    </div>
+    <div class="login-field">
+      <label>Usuario</label>
+      <input type="text" id="loginUsuario" placeholder="Ej: admin" autocomplete="username" />
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn-login" id="btnLogin" onclick="doLogin()">Iniciar sesión</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ══════════════ APP PRINCIPAL ══════════════ -->
+<div id="appScreen">
+  <header>
+    <div class="logo">
+      <span style="font-size:1.6rem">💊</span>
+      <div>
+        <h1>Control de Caducidades</h1>
+        <span class="sub">Farmacia</span>
+      </div>
+    </div>
+    <div class="user-info">
+      <div class="user-avatar" id="userAvatar">A</div>
+      <div>
+        <div class="user-name" id="userNombre">—</div>
+        <span class="user-rol" id="userRolBadge">usuario</span>
+      </div>
+      <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4);padding:6px 12px;font-size:.82rem" onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+
+  <nav>
+    <div class="nav-tab active" data-panel="panelProductos" onclick="showPanel('panelProductos', this)">📦 Productos</div>
+    <div class="nav-tab admin-only" data-panel="panelUsuarios" onclick="showPanel('panelUsuarios', this)">👥 Usuarios</div>
+    <div class="nav-tab" data-panel="panelPerfil" onclick="showPanel('panelPerfil', this)">🔒 Mi cuenta</div>
+  </nav>
+
+  <main>
+
+    <!-- ── PANEL PRODUCTOS ── -->
+    <div class="panel active" id="panelProductos">
+
+      <div class="summary">
+        <div class="stat-card expired">
+          <div class="num" id="cnt-expired">—</div>
+          <div class="lbl">Caducados</div>
+        </div>
+        <div class="stat-card critical">
+          <div class="num" id="cnt-critical">—</div>
+          <div class="lbl">Críticos (≤30 días)</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="num" id="cnt-warning">—</div>
+          <div class="lbl">Próximos (31–90 días)</div>
+        </div>
+        <div class="stat-card ok">
+          <div class="num" id="cnt-ok">—</div>
+          <div class="lbl">Sin riesgo (&gt;90 días)</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" id="cnt-total">—</div>
+          <div class="lbl">Total registrados</div>
+        </div>
+      </div>
+
+      <div class="upload-zone" id="dropzone">
+        <div class="icon">📂</div>
+        <strong>Arrastra tu archivo Excel aquí</strong>
+        <p>o haz clic para seleccionarlo (.xlsx, .xls)</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" />
+      </div>
+
+      <div class="toolbar">
+        <input type="text" id="searchBox" placeholder="Buscar por nombre o código…" oninput="onSearch()" />
+        <select id="filterStatus" onchange="loadProductos()">
+          <option value="all">Todos los estados</option>
+          <option value="expired">Caducados</option>
+          <option value="critical">Críticos (≤30 días)</option>
+          <option value="warning">Próximos (31–90 días)</option>
+          <option value="ok">Sin riesgo</option>
+        </select>
+        <button class="btn btn-primary" onclick="openProductModal()">+ Agregar producto</button>
+        <button class="btn btn-outline" onclick="exportar()">⬇ Exportar Excel</button>
+        <button class="btn btn-danger" id="btnDelete" style="display:none" onclick="deleteSelected()">🗑 Eliminar selección</button>
+      </div>
+
+      <!-- Banner selección global (estilo Gmail) -->
+      <div class="select-all-banner" id="selectBanner">
+        <span id="bannerMsg"></span>
+        <button class="link-btn" id="bannerActionBtn"></button>
+        <button class="link-btn" style="color:var(--muted)" onclick="clearGlobalSelection()">Cancelar selección</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px"><input type="checkbox" id="checkAll" onchange="toggleAll(this)" /></th>
+              <th onclick="sortBy('codigo')">Código</th>
+              <th onclick="sortBy('nombre')">Nombre</th>
+              <th onclick="sortBy('fecha_caducidad')">Fecha Caducidad</th>
+              <th onclick="sortBy('dias')">Días Restantes</th>
+              <th onclick="sortBy('cantidad')">Cantidad</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="8"><div class="empty"><div class="icon">⏳</div><p>Cargando…</p></div></td></tr>
+          </tbody>
+        </table>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    <!-- ── PANEL USUARIOS ── -->
+    <div class="panel" id="panelUsuarios">
+      <div class="toolbar" style="margin-bottom:20px">
+        <h2 style="flex:1;font-size:1.1rem">Gestión de usuarios</h2>
+        <button class="btn btn-primary" onclick="openUserModal()">+ Nuevo usuario</button>
+      </div>
+      <div class="users-grid" id="usersGrid">
+        <div class="empty"><div class="icon">⏳</div><p>Cargando…</p></div>
+      </div>
+    </div>
+
+    <!-- ── PANEL MI CUENTA ── -->
+    <div class="panel" id="panelPerfil">
+      <div class="profile-box">
+        <h3>🔒 Cambiar contraseña</h3>
+        <div class="field-row">
+          <label>Contraseña actual</label>
+          <input type="password" id="p-actual" placeholder="••••••••" />
+        </div>
+        <div class="field-row">
+          <label>Nueva contraseña</label>
+          <input type="password" id="p-nueva" placeholder="Mínimo 4 caracteres" />
+        </div>
+        <div class="field-row">
+          <label>Confirmar nueva contraseña</label>
+          <input type="password" id="p-confirm" placeholder="Repite la contraseña" />
+        </div>
+        <button class="btn btn-primary" onclick="cambiarPassword()">Guardar contraseña</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Modal producto -->
+<div class="overlay" id="overlayProducto" onclick="closeModalOutside(event,'overlayProducto')">
+  <div class="modal">
+    <h2 id="modalProductoTitle">Agregar producto</h2>
+    <div class="field-row"><label>Código / SKU</label><input type="text" id="f-codigo" placeholder="Ej: MED-001" /></div>
+    <div class="field-row"><label>Nombre del producto *</label><input type="text" id="f-nombre" placeholder="Ej: Paracetamol 500mg" /></div>
+    <div class="field-row"><label>Fecha de caducidad *</label><input type="date" id="f-fecha" /></div>
+    <div class="field-row"><label>Cantidad / Stock</label><input type="number" id="f-cantidad" placeholder="0" min="0" /></div>
+    <div class="field-row"><label>Presentación / Notas</label><input type="text" id="f-notas" placeholder="Ej: Caja x 20 tabletas" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeOverlay('overlayProducto')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSaveProducto" onclick="saveProduct()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal usuario -->
+<div class="overlay" id="overlayUsuario" onclick="closeModalOutside(event,'overlayUsuario')">
+  <div class="modal">
+    <h2 id="modalUsuarioTitle">Nuevo usuario</h2>
+    <div class="field-row"><label>Nombre completo *</label><input type="text" id="u-nombre" placeholder="Ej: María García" /></div>
+    <div class="field-row"><label>Nombre de usuario *</label><input type="text" id="u-usuario" placeholder="Ej: mgarcia" /></div>
+    <div class="field-row"><label>Contraseña *</label><input type="password" id="u-password" placeholder="Mínimo 4 caracteres" /></div>
+    <div class="field-row">
+      <label>Rol</label>
+      <select id="u-rol">
+        <option value="usuario">Usuario — solo consulta y registro</option>
+        <option value="admin">Administrador — acceso completo</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeOverlay('overlayUsuario')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSaveUsuario" onclick="saveUser()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal cambiar pass (admin sobre otro usuario) -->
+<div class="overlay" id="overlayResetPass" onclick="closeModalOutside(event,'overlayResetPass')">
+  <div class="modal">
+    <h2>Restablecer contraseña</h2>
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:16px">Establece una nueva contraseña para <strong id="resetUserName"></strong>.</p>
+    <div class="field-row"><label>Nueva contraseña *</label><input type="password" id="r-nueva" placeholder="Mínimo 4 caracteres" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeOverlay('overlayResetPass')">Cancelar</button>
+      <button class="btn btn-warning" onclick="resetPassword()">Restablecer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Estado global ────────────────────────────────────────────────
+let session      = null;
+let allRows      = [];
+let editingId    = null;
+let resetUserId  = null;
+let sortKey      = 'dias';
+let sortDir      = 1;
+let currentPage  = 1;
+let searchTimer;
+const PAGE_SIZE  = 20;
+
+// ── API helper ───────────────────────────────────────────────────
+async function api(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) { showLogin(); return null; }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Error desconocido');
+  }
+  return res.json();
+}
+
+// ── Auth ─────────────────────────────────────────────────────────
+async function checkSession() {
+  try {
+    const me = await fetch('/api/auth/me').then(r => r.json());
+    if (me.autenticado) {
+      session = me;
+      showApp();
+    } else {
+      showLogin();
+    }
+  } catch { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appScreen').style.display   = 'none';
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display   = 'block';
+  // Datos del usuario en header
+  document.getElementById('userNombre').textContent  = session.nombre;
+  document.getElementById('userAvatar').textContent  = session.nombre.charAt(0).toUpperCase();
+  document.getElementById('userRolBadge').textContent = session.rol === 'admin' ? '⭐ Admin' : '👤 Usuario';
+  // Mostrar tab admin si corresponde
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = session.rol === 'admin' ? '' : 'none';
+  });
+  loadProductos();
+  loadResumen();
+}
+
+async function doLogin() {
+  const usuario  = document.getElementById('loginUsuario').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('btnLogin');
+
+  errEl.classList.remove('show');
+  if (!usuario || !password) { errEl.textContent = 'Ingresa usuario y contraseña.'; errEl.classList.add('show'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Entrando…';
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error al iniciar sesión.'; errEl.classList.add('show'); return; }
+    session = data;
+    showApp();
+  } catch { errEl.textContent = 'No se pudo conectar al servidor.'; errEl.classList.add('show'); }
+  finally { btn.disabled = false; btn.innerHTML = 'Iniciar sesión'; }
+}
+
+async function doLogout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  session = null;
+  showLogin();
+  document.getElementById('loginPassword').value = '';
+}
+
+// Enter en login
+document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('loginUsuario').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+
+// ── Navegación ───────────────────────────────────────────────────
+function showPanel(panelId, tabEl) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(panelId).classList.add('active');
+  tabEl.classList.add('active');
+  if (panelId === 'panelUsuarios') loadUsuarios();
+}
+
+// ── Productos ────────────────────────────────────────────────────
+async function loadProductos() {
+  const q      = document.getElementById('searchBox').value.trim();
+  const status = document.getElementById('filterStatus').value;
+  const params = new URLSearchParams({ q, status });
+  try {
+    const rows = await api(`/api/productos?${params}`);
+    if (rows === null) return;
+    allRows = rows;
+    currentPage = 1;
+    globalSelectAll = false;
+    hideBanner();
+    document.getElementById('btnDelete').style.display = 'none';
+    document.getElementById('checkAll').checked = false;
+    renderTable();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function loadResumen() {
+  try {
+    const r = await api('/api/resumen');
+    if (!r) return;
+    document.getElementById('cnt-expired').textContent  = r.expired;
+    document.getElementById('cnt-critical').textContent = r.critical;
+    document.getElementById('cnt-warning').textContent  = r.warning;
+    document.getElementById('cnt-ok').textContent       = r.ok;
+    document.getElementById('cnt-total').textContent    = r.total;
+  } catch {}
+}
+
+function onSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadProductos, 300); }
+
+function renderTable() {
+  const sorted = [...allRows].sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'dias') { va = va ?? 99999; vb = vb ?? 99999; }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -sortDir;
+    if (va > vb) return  sortDir;
+    return 0;
+  });
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = sorted.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById('tableBody');
+
+  if (!sorted.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">🔍</div><p>No se encontraron productos.</p></div></td></tr>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = page.map(p => `
+    <tr>
+      <td><input type="checkbox" class="row-check" data-id="${p.id}" onchange="onCheck()" /></td>
+      <td>${p.codigo || '<span style="color:var(--muted)">—</span>'}</td>
+      <td><strong>${p.nombre}</strong>${p.notas ? `<br><small style="color:var(--muted)">${p.notas}</small>` : ''}</td>
+      <td>${fmtDate(p.fecha_caducidad)}</td>
+      <td>${daysChip(p.dias)}</td>
+      <td>${p.cantidad ?? '—'}</td>
+      <td>${badge(p.dias)}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="editProduct(${p.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteOne(${p.id})">🗑</button>
+      </td>
+    </tr>`).join('');
+
+  renderPagination(sorted.length);
+}
+
+function renderPagination(total) {
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+  let html = '';
+  for (let i = 1; i <= pages; i++)
+    html += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+  document.getElementById('pagination').innerHTML = html;
+}
+
+function goPage(n) { currentPage = n; renderTable(); }
+function sortBy(k) { if (sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=1; } renderTable(); }
+
+// ── Helpers visuales ─────────────────────────────────────────────
+function statusOf(d) {
+  if (d===null||d===undefined) return 'ok';
+  if (d < 0)   return 'expired';
+  if (d <= 30)  return 'critical';
+  if (d <= 90)  return 'warning';
+  return 'ok';
+}
+function badge(d) {
+  const map = { expired:['badge-red','❌ Caducado'], critical:['badge-orange','🔴 Crítico'], warning:['badge-yellow','🟡 Próximo'], ok:['badge-green','🟢 OK'] };
+  const [cls, label] = map[statusOf(d)];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function daysChip(d) {
+  if (d===null||d===undefined) return '—';
+  const styles = { expired:'background:#fff5f5;color:#e53e3e', critical:'background:#fffaf0;color:#dd6b20', warning:'background:#fffff0;color:#d69e2e', ok:'background:#f0fff4;color:#38a169' };
+  const label = d < 0 ? `${Math.abs(d)} días vencido` : d === 0 ? 'Hoy' : `${d} días`;
+  return `<span class="days-chip" style="${styles[statusOf(d)]}">${label}</span>`;
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s + 'T00:00:00');
+  if (isNaN(d)) return s;
+  return d.toLocaleDateString('es-MX', { year:'numeric', month:'short', day:'2-digit' });
+}
+
+// ── Checkbox + selección global (estilo Gmail) ───────────────────
+let globalSelectAll = false; // true = todos los resultados seleccionados
+
+function onCheck() {
+  const checked = document.querySelectorAll('.row-check:checked').length;
+  const total   = document.querySelectorAll('.row-check').length;
+  document.getElementById('btnDelete').style.display = checked > 0 ? '' : 'none';
+
+  // Si desmarca alguno, cancela la selección global
+  if (globalSelectAll && checked < total) clearGlobalSelection();
+
+  // Si marcó todos los de la página y hay más páginas, ofrece seleccionar todos
+  if (checked === total && allRows.length > PAGE_SIZE && !globalSelectAll) {
+    showBannerOffer();
+  } else if (!globalSelectAll) {
+    hideBanner();
+  }
+}
+
+function toggleAll(el) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = el.checked);
+  if (!el.checked) clearGlobalSelection();
+  onCheck();
+}
+
+function showBannerOffer() {
+  const banner = document.getElementById('selectBanner');
+  const msg    = document.getElementById('bannerMsg');
+  const btn    = document.getElementById('bannerActionBtn');
+  msg.innerHTML = `Se seleccionaron los <strong>${PAGE_SIZE}</strong> productos de esta página.`;
+  btn.textContent = `Seleccionar los ${allRows.length} productos de todos los resultados`;
+  btn.onclick = activateGlobalSelection;
+  banner.classList.add('show');
+}
+
+function activateGlobalSelection() {
+  globalSelectAll = true;
+  const banner = document.getElementById('selectBanner');
+  const msg    = document.getElementById('bannerMsg');
+  const btn    = document.getElementById('bannerActionBtn');
+  msg.innerHTML = `<strong>Todos los ${allRows.length} productos están seleccionados.</strong>`;
+  btn.textContent = `Eliminar los ${allRows.length} productos`;
+  btn.onclick = deleteSelected;
+  banner.classList.add('show');
+  document.getElementById('btnDelete').style.display = '';
+}
+
+function clearGlobalSelection() {
+  globalSelectAll = false;
+  hideBanner();
+  document.querySelectorAll('.row-check').forEach(c => c.checked = false);
+  document.getElementById('checkAll').checked = false;
+  document.getElementById('btnDelete').style.display = 'none';
+}
+
+function hideBanner() {
+  document.getElementById('selectBanner').classList.remove('show');
+}
+
+// ── CRUD productos ───────────────────────────────────────────────
+function openProductModal(id = null) {
+  editingId = id;
+  document.getElementById('modalProductoTitle').textContent = id ? 'Editar producto' : 'Agregar producto';
+  ['codigo','nombre','fecha','cantidad','notas'].forEach(f => document.getElementById('f-'+f).value = '');
+  if (id) {
+    const p = allRows.find(x => x.id === id);
+    if (p) {
+      document.getElementById('f-codigo').value   = p.codigo || '';
+      document.getElementById('f-nombre').value   = p.nombre || '';
+      document.getElementById('f-fecha').value    = p.fecha_caducidad || '';
+      document.getElementById('f-cantidad').value = p.cantidad ?? '';
+      document.getElementById('f-notas').value    = p.notas || '';
+    }
+  }
+  document.getElementById('overlayProducto').classList.add('open');
+  setTimeout(() => document.getElementById('f-nombre').focus(), 50);
+}
+function editProduct(id) { openProductModal(id); }
+
+async function saveProduct() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const fecha  = document.getElementById('f-fecha').value;
+  if (!nombre) { toast('⚠️ El nombre es obligatorio.'); return; }
+  if (!fecha)  { toast('⚠️ La fecha de caducidad es obligatoria.'); return; }
+
+  const body = {
+    codigo: document.getElementById('f-codigo').value.trim(),
+    nombre, fecha_caducidad: fecha,
+    cantidad: document.getElementById('f-cantidad').value !== '' ? Number(document.getElementById('f-cantidad').value) : null,
+    notas: document.getElementById('f-notas').value.trim(),
+  };
+
+  const btn = document.getElementById('btnSaveProducto');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+  try {
+    if (editingId) {
+      await api(`/api/productos/${editingId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      toast('✅ Producto actualizado.');
+    } else {
+      await api('/api/productos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      toast('✅ Producto agregado.');
+    }
+    closeOverlay('overlayProducto');
+    await Promise.all([loadProductos(), loadResumen()]);
+  } catch(e) { toast('❌ ' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = 'Guardar'; }
+}
+
+async function deleteOne(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  try {
+    await api(`/api/productos/${id}`, { method:'DELETE' });
+    toast('🗑 Producto eliminado.');
+    await Promise.all([loadProductos(), loadResumen()]);
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function deleteSelected() {
+  // Si está activada la selección global, borrar TODOS los resultados actuales
+  const ids = globalSelectAll
+    ? allRows.map(p => p.id)
+    : [...document.querySelectorAll('.row-check:checked')].map(c => Number(c.dataset.id));
+
+  if (!ids.length) return;
+
+  const confirmMsg = globalSelectAll
+    ? `⚠️ Vas a eliminar TODOS los ${ids.length} productos de los resultados actuales.\n\nEsta acción no se puede deshacer. ¿Continuar?`
+    : `¿Eliminar ${ids.length} producto(s) seleccionado(s)?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById('btnDelete');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Eliminando…';
+
+  try {
+    await api('/api/productos/eliminar-lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    clearGlobalSelection();
+    toast(`🗑 ${ids.length} producto(s) eliminados.`);
+    await Promise.all([loadProductos(), loadResumen()]);
+  } catch(e) { toast('❌ ' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = '🗑 Eliminar selección'; }
+}
+
+// ── Import / Export ──────────────────────────────────────────────
+async function importExcel(file) {
+  const formData = new FormData();
+  formData.append('archivo', file);
+  const dz = document.getElementById('dropzone');
+  dz.innerHTML = '<div class="icon">⏳</div><strong>Importando…</strong>';
+  try {
+    const r = await api('/api/importar', { method:'POST', body: formData });
+    if (!r) return;
+    toast(`✅ ${r.imported} productos importados${r.skipped ? `, ${r.skipped} vacías ignoradas` : ''}.`);
+    await Promise.all([loadProductos(), loadResumen()]);
+  } catch(e) { toast('❌ ' + e.message); }
+  finally {
+    dz.innerHTML = `<div class="icon">📂</div><strong>Arrastra tu archivo Excel aquí</strong><p>o haz clic para seleccionarlo (.xlsx, .xls)</p><input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" />`;
+    attachFileInput();
+  }
+}
+function exportar() { window.location.href = '/api/exportar'; }
+
+function attachFileInput() {
+  const fi = document.getElementById('fileInput');
+  if (fi) fi.addEventListener('change', () => { if (fi.files[0]) importExcel(fi.files[0]); fi.value = ''; });
+}
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('click', () => document.getElementById('fileInput').click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag'); if (e.dataTransfer.files[0]) importExcel(e.dataTransfer.files[0]); });
+attachFileInput();
+
+// ── Usuarios ─────────────────────────────────────────────────────
+async function loadUsuarios() {
+  const grid = document.getElementById('usersGrid');
+  grid.innerHTML = '<div class="empty"><div class="icon">⏳</div><p>Cargando…</p></div>';
+  try {
+    const users = await api('/api/usuarios');
+    if (!users) return;
+    if (!users.length) { grid.innerHTML = '<div class="empty"><p>No hay usuarios.</p></div>'; return; }
+    grid.innerHTML = users.map(u => `
+      <div class="user-card ${u.rol==='admin'?'admin-card':''}">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:40px;height:40px;border-radius:50%;background:${u.rol==='admin'?'#fffaf0':'#ebf8ff'};display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:${u.rol==='admin'?'var(--orange)':'var(--blue)'}">
+            ${u.nombre.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div class="user-card-name">${u.nombre}</div>
+            <div class="user-card-user">@${u.usuario}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span class="badge ${u.rol==='admin'?'badge-orange':'badge-blue'}">${u.rol==='admin'?'⭐ Admin':'👤 Usuario'}</span>
+          <span style="font-size:.75rem;color:var(--muted)">Creado: ${u.creado_en||'—'}</span>
+        </div>
+        <div class="user-card-actions">
+          <button class="btn btn-warning btn-sm" onclick="openResetPass(${u.id},'${u.nombre.replace(/'/g,'\\\'')}')" ${u.id===session?.userId?'disabled title="Usa Mi cuenta para cambiar tu contraseña"':''}>🔑 Reset pass</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.nombre.replace(/'/g,'\\\'')}')" ${u.id===session?.userId?'disabled title="No puedes eliminarte a ti mismo"':''}>🗑 Eliminar</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+function openUserModal() {
+  ['nombre','usuario','password'].forEach(f => document.getElementById('u-'+f).value = '');
+  document.getElementById('u-rol').value = 'usuario';
+  document.getElementById('overlayUsuario').classList.add('open');
+  setTimeout(() => document.getElementById('u-nombre').focus(), 50);
+}
+
+async function saveUser() {
+  const nombre   = document.getElementById('u-nombre').value.trim();
+  const usuario  = document.getElementById('u-usuario').value.trim();
+  const password = document.getElementById('u-password').value;
+  const rol      = document.getElementById('u-rol').value;
+
+  if (!nombre || !usuario || !password) { toast('⚠️ Todos los campos son obligatorios.'); return; }
+  if (password.length < 4) { toast('⚠️ La contraseña debe tener al menos 4 caracteres.'); return; }
+
+  const btn = document.getElementById('btnSaveUsuario');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creando…';
+  try {
+    await api('/api/usuarios', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nombre, usuario, password, rol }) });
+    toast('✅ Usuario creado correctamente.');
+    closeOverlay('overlayUsuario');
+    loadUsuarios();
+  } catch(e) { toast('❌ ' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = 'Crear usuario'; }
+}
+
+async function deleteUser(id, nombre) {
+  if (!confirm(`¿Eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await api(`/api/usuarios/${id}`, { method:'DELETE' });
+    toast(`🗑 Usuario "${nombre}" eliminado.`);
+    loadUsuarios();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+function openResetPass(id, nombre) {
+  resetUserId = id;
+  document.getElementById('resetUserName').textContent = nombre;
+  document.getElementById('r-nueva').value = '';
+  document.getElementById('overlayResetPass').classList.add('open');
+  setTimeout(() => document.getElementById('r-nueva').focus(), 50);
+}
+
+async function resetPassword() {
+  const pass = document.getElementById('r-nueva').value;
+  if (!pass || pass.length < 4) { toast('⚠️ La contraseña debe tener al menos 4 caracteres.'); return; }
+  try {
+    await api(`/api/usuarios/${resetUserId}/password`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password_nuevo: pass }),
+    });
+    toast('✅ Contraseña restablecida.');
+    closeOverlay('overlayResetPass');
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// ── Mi cuenta ────────────────────────────────────────────────────
+async function cambiarPassword() {
+  const actual   = document.getElementById('p-actual').value;
+  const nueva    = document.getElementById('p-nueva').value;
+  const confirm2 = document.getElementById('p-confirm').value;
+
+  if (!actual || !nueva) { toast('⚠️ Completa todos los campos.'); return; }
+  if (nueva.length < 4)  { toast('⚠️ La contraseña debe tener al menos 4 caracteres.'); return; }
+  if (nueva !== confirm2){ toast('⚠️ Las contraseñas nuevas no coinciden.'); return; }
+
+  try {
+    await api(`/api/usuarios/${session.userId}/password`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password_actual: actual, password_nuevo: nueva }),
+    });
+    toast('✅ Contraseña actualizada correctamente.');
+    ['p-actual','p-nueva','p-confirm'].forEach(id => document.getElementById(id).value = '');
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────
+function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
+function closeModalOutside(e, id) { if (e.target === document.getElementById(id)) closeOverlay(id); }
+
+// ── Toast ─────────────────────────────────────────────────────────
+function toast(msg, ms = 3500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+checkSession();
+</script>
+</body>
+</html>
