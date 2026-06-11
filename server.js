@@ -376,7 +376,7 @@ app.get('*', (req, res) => {
 
 // ── Arranque ──────────────────────────────────────────────────────
 connectDB().then(() => {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log('');
     console.log('  ✅  Farmacia — Control de Caducidades');
     console.log(`  🌐  Local: http://localhost:${PORT}`);
